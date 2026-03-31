@@ -1,0 +1,145 @@
+
+:root {
+    --bg: #121212; --card: #1e1e1e; --accent: #D4AF37;
+    --text: #ffffff; --danger: #ff4d4d; --success: #2ecc71;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow-x: hidden; }
+
+.mobile-header { height: 60px; display: flex; align-items: center; justify-content: center; background: var(--card); position: fixed; top: 0; width: 100%; z-index: 10; border-bottom: 1px solid #333; }
+.mobile-header span { color: var(--accent); }
+
+.container-mobile { padding: 80px 20px 100px 20px; min-height: 100vh; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+.card-stat { background: var(--card); padding: 15px; border-radius: 15px; border-left: 4px solid var(--accent); }
+.card-stat h4 { font-size: 12px; color: #888; text-transform: uppercase; }
+.card-stat p { font-size: 20px; font-weight: bold; margin-top: 5px; }
+
+.item-list { background: var(--card); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; animation: slideUp 0.3s ease; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+input, select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #333; background: #252525; color: white; font-size: 16px; }
+.btn-primary { width: 100%; background: var(--accent); color: black; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+.btn-small { background: var(--accent); border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+.tab-bar { position: fixed; bottom: 0; width: 100%; height: 70px; background: #1e1e1e; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #333; z-index: 10; }
+.tab-item { background: none; border: none; color: #666; font-size: 10px; display: flex; flex-direction: column; align-items: center; flex: 1; }
+.tab-item.active { color: var(--accent); }
+.tab-item i { font-size: 22px; margin-bottom: 4px; font-style: normal; }
+
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; align-items: flex-end; }
+.bottom-sheet { background: var(--card); width: 100%; padding: 25px; border-radius: 20px 20px 0 0; border-top: 2px solid var(--accent); }
+
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='gold' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1em;
+}
+/* Bloqueio inicial: ninguém aparece até que o JS autorize */
+
+/* --- MODO CLIENTE (LINK EXTERNO) --- */
+
+/* Esconde TUDO da administração quando a classe agendar-mode está no body */
+body.agendar-mode .mobile-header,
+body.agendar-mode .tab-bar,
+body.agendar-mode .admin-only,
+body.agendar-mode #view-dash,
+body.agendar-mode .btn-small:not(.btn-confirmar) {
+    display: none !important;
+}
+
+/* Garante que o fundo seja sempre escuro e elegante para o cliente */
+body.agendar-mode {
+    background: #000 !important;
+    padding: 0 !important;
+}
+
+/* Estilização do Modal de Agendamento para o Cliente */
+body.agendar-mode .bottom-sheet {
+    height: 100vh; /* Ocupa a tela toda no link */
+    border-radius: 0;
+    background: #121212;
+    padding-top: 40px;
+}
+
+/* Destaque para o Título no modo cliente */
+body.agendar-mode h3::before {
+    content: "Reserva de Horário";
+    display: block;
+    font-size: 24px;
+    color: var(--accent);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Inputs mais luxuosos para o cliente */
+body.agendar-mode input, 
+body.agendar-mode select {
+    background: #1a1a1a !important;
+    border: 1px solid #333 !important;
+    height: 55px;
+    font-size: 16px;
+    margin-bottom: 15px;
+}
+.auth-container {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #0f0f0f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.auth-box {
+    background: #1a1a1a;
+    width: 100%;
+    max-width: 400px;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 1px solid #333;
+}
+
+.auth-header { text-align: center; margin-bottom: 30px; }
+.auth-header h1 { color: #fff; font-size: 24px; margin: 10px 0 5px; }
+.auth-header h1 span { color: #D4AF37; } /* Cor Dourada */
+.auth-header p { color: #888; font-size: 14px; }
+
+.auth-form .input-group { margin-bottom: 20px; }
+.auth-form label { display: block; color: #bbb; margin-bottom: 8px; font-size: 14px; }
+
+.auth-form input {
+    width: 100%;
+    padding: 12px 15px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 16px;
+    transition: 0.3s;
+}
+
+.auth-form input:focus { border-color: #D4AF37; outline: none; background: #333; }
+
+.btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: #D4AF37;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-primary:hover { background: #bfa030; transform: translateY(-2px); }
+
+.auth-footer { margin-top: 25px; text-align: center; color: #666; font-size: 12px; }
