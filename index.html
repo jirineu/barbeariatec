@@ -8,25 +8,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-<div id="auth-screen" class="auth-container">
-    <div class="auth-box">
+    
+<div id="auth-screen" class="auth-container" style="background-color: #000; min-height: 100vh; display: flex; justify-content: center; align-items: center;">
+    
+    <div id="loading-screen" style="display: none; flex-direction: column; align-items: center;">
+        <div class="loader-circle"></div>
+        <p style="color: #D4AF37; margin-top: 15px; font-weight: bold;">CARREGANDO...</p>
+    </div>
+
+    <div id="login-content" class="auth-box" style="display: none;">
         <div class="auth-header">
             <h1>BarberPro <span>Acesso</span></h1>
             <p>Digite seu usuário para entrar</p>
         </div>
-
         <form id="login-form" class="auth-form">
             <div class="input-group">
                 <label>Nome de Usuário</label>
                 <input type="text" id="login-usuario" placeholder="Ex: joão_barber" required>
             </div>
-
             <div class="input-group">
                 <label>Senha</label>
                 <input type="password" id="login-password" placeholder="••••••••" required>
             </div>
-
-            <button type="submit" id="btn-login" class="btn-primary">Entrar</button>
+            <button type="submit" id="btn-login" class="btn-primary" style="width: 100%;">Entrar</button>
         </form>
     </div>
 </div>
