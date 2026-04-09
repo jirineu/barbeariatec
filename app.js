@@ -24,28 +24,31 @@ config: {
 // Renderiza a lista de dias na tela de configurações
 renderizarConfigHorarios() {
     const container = document.getElementById('config-horarios-lista');
-    if (!container) return; // Segurança caso o elemento não exista
+    if (!container) return;
 
     const diasNomes = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
     container.innerHTML = '';
 
     diasNomes.forEach((nome, i) => {
-        // BUSCA O DADO EXISTENTE OU DEFINE UM PADRÃO (IMPORTANTE!)
-        const d = (this.dados.config && this.dados.config.diasTrabalho && this.dados.config.diasTrabalho[i]) 
-                  ? this.dados.config.diasTrabalho[i] 
-                  : { ativo: false, inicio: "08:00", fim: "18:00", almocoInicio: "12:00", almocoFim: "13:00" };
+        const dadosDia = (this.dados.config && this.dados.config.diasTrabalho) ? this.dados.config.diasTrabalho[i] : null;
+        
+        // PADRÃO DE SEGURANÇA: Se não existir ou vier errado, assume esses valores
+        const d = dadosDia || { ativo: false, inicio: "08:00", fim: "18:00", almocoInicio: "12:00", almocoFim: "13:00" };
+
+        // CURA DE BOOLEANO: Garante que 'true' (string) vire true (boolean)
+        const estaAtivo = String(d.ativo).toLowerCase() === "true" || d.ativo === true;
 
         container.innerHTML += `
-            <div class="card" style="padding: 15px; border-left: 4px solid ${d.ativo ? 'var(--accent)' : '#444'}; background: #1e1e1e; margin-bottom: 10px;">
+            <div class="card" style="padding: 15px; border-left: 4px solid ${estaAtivo ? 'var(--accent)' : '#444'}; background: #1e1e1e; margin-bottom: 10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
-                    <label style="font-weight:bold; color: ${d.ativo ? '#fff' : '#888'}">${nome}</label>
-                    <input type="checkbox" id="dia-${i}-ativo" ${d.ativo ? 'checked' : ''} onchange="app.toggleDiaConfig(${i})">
+                    <label style="font-weight:bold; color: ${estaAtivo ? '#fff' : '#888'}">${nome}</label>
+                    <input type="checkbox" id="dia-${i}-ativo" ${estaAtivo ? 'checked' : ''} onchange="app.toggleDiaConfig(${i})">
                 </div>
-                <div id="inputs-dia-${i}" style="display: ${d.ativo ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.8rem; color: #ccc;">
-                    <div>Abertura: <input type="time" id="dia-${i}-inicio" value="${d.inicio}" style="width:100%; padding:8px; border-radius:5px; border:1px solid #444; background:#000; color:#fff"></div>
-                    <div>Fechamento: <input type="time" id="dia-${i}-fim" value="${d.fim}" style="width:100%; padding:8px; border-radius:5px; border:1px solid #444; background:#000; color:#fff"></div>
-                    <div>Almoço (Início): <input type="time" id="dia-${i}-almoco-ini" value="${d.almocoInicio}" style="width:100%; padding:8px; border-radius:5px; border:1px solid #444; background:#000; color:#fff"></div>
-                    <div>Almoço (Fim): <input type="time" id="dia-${i}-almoco-fim" value="${d.almocoFim}" style="width:100%; padding:8px; border-radius:5px; border:1px solid #444; background:#000; color:#fff"></div>
+                <div id="inputs-dia-${i}" style="display: ${estaAtivo ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.8rem; color: #ccc;">
+                    <div>Abertura: <input type="time" id="dia-${i}-inicio" value="${d.inicio}"></div>
+                    <div>Fechamento: <input type="time" id="dia-${i}-fim" value="${d.fim}"></div>
+                    <div>Almoço (Início): <input type="time" id="dia-${i}-almoco-ini" value="${d.almocoInicio}"></div>
+                    <div>Almoço (Fim): <input type="time" id="dia-${i}-almoco-fim" value="${d.almocoFim}"></div>
                 </div>
             </div>
         `;
@@ -55,30 +58,46 @@ renderizarConfigHorarios() {
 toggleDiaConfig(dia) {
     const div = document.getElementById(`inputs-dia-${dia}`);
     const checkbox = document.getElementById(`dia-${dia}-ativo`);
+    
     if (div && checkbox) {
+        // Mostra ou esconde os inputs
         div.style.display = checkbox.checked ? 'grid' : 'none';
-        // Atualiza a borda do card para dar feedback visual
-        div.parentElement.style.borderLeftColor = checkbox.checked ? 'var(--accent)' : '#444';
+        
+        // Altera a cor da borda do card (o avô do checkbox)
+        const card = checkbox.closest('.card');
+        if (card) {
+            card.style.borderLeftColor = checkbox.checked ? 'var(--accent)' : '#444';
+            // Altera a cor do texto do label que está dentro do card
+            const label = card.querySelector('label');
+            if (label) label.style.color = checkbox.checked ? '#fff' : '#888';
+        }
     }
 },
 
 salvarConfiguracoesHorario() {
-    // Inicializa a estrutura se não existir
     if (!this.dados.config) this.dados.config = {};
     if (!this.dados.config.diasTrabalho) this.dados.config.diasTrabalho = {};
 
     for(let i=0; i<7; i++) {
-        const ativo = document.getElementById(`dia-${i}-ativo`).checked;
-        this.dados.config.diasTrabalho[i] = {
-            ativo: ativo,
-            inicio: document.getElementById(`dia-${i}-inicio`).value,
-            fim: document.getElementById(`dia-${i}-fim`).value,
-            almocoInicio: document.getElementById(`dia-${i}-almoco-ini`).value,
-            almocoFim: document.getElementById(`dia-${i}-almoco-fim`).value
-        };
+        const elAtivo = document.getElementById(`dia-${i}-ativo`);
+        const elInicio = document.getElementById(`dia-${i}-inicio`);
+        const elFim = document.getElementById(`dia-${i}-fim`); // CORRIGIDO: Removido o "2"
+        const elAlmocoIni = document.getElementById(`dia-${i}-almoco-ini`);
+        const elAlmocoFim = document.getElementById(`dia-${i}-almoco-fim`);
+
+        // Segurança extra: Verifica se o elemento existe antes de ler o .value
+        if (elAtivo && elInicio && elFim) {
+            this.dados.config.diasTrabalho[i] = {
+                ativo: elAtivo.checked,
+                inicio: elInicio.value || "08:00",
+                fim: elFim.value || "18:00",
+                almocoInicio: elAlmocoIni.value || "12:00",
+                almocoFim: elAlmocoFim.value || "13:00"
+            };
+        }
     }
     
-    this.persistir(); // Salva no LocalStorage e GitHub
+    this.persistir(); 
     alert("✅ Horários de funcionamento atualizados!");
     this.renderView('dash');
 },
@@ -104,38 +123,52 @@ persistir() {
         }
     }, 500);
 },
-    renderView(view, btn) {
+renderView(view, btn) {
     if (view === 'add-agenda') {
         this.prepararNovoAgendamento();
         return;
     }
 
-    document.querySelectorAll('.view-section').forEach(s => s.style.display = 'none');
+    // Esconde as seções existentes
+    const sections = document.querySelectorAll('.view-section');
+    if (sections) {
+        sections.forEach(s => s.style.display = 'none');
+    }
     
-    // Define qual ID de seção será exibido
     const targetView = (view === 'externo') ? 'add-agenda' : view;
-    
     const viewEl = document.getElementById(`view-${targetView}`);
-    if(viewEl) {
+    
+    if (viewEl) {
         viewEl.style.display = 'block';
-        window.scrollTo(0, 0); // Garante que a tela comece no topo
+        window.scrollTo(0, 0);
+    } else {
+        console.error(`A tela "view-${targetView}" não existe no HTML.`);
+        // Se a tela de serviços não abrir, tente renderizar os dados nela mesmo assim
+        // para garantir que o erro de undefined não venha depois
     }
 
+    // --- AQUI ESTAVA O ERRO ---
     const tabBar = document.querySelector('.tab-bar');
-    // Adicionei 'config' aqui para esconder a barra de baixo quando estiver configurando
-    const esconderAbas = (view === 'externo' || view === 'historico' || view === 'config');
-    tabBar.style.display = esconderAbas ? 'none' : 'flex';
-    
-    if (btn) {
-        document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+    if (tabBar) {
+        // Lista de telas que NÃO devem mostrar a barra inferior
+        const telasSemBarra = ['externo', 'historico', 'config', 'auth', 'login'];
+        const esconderAbas = telasSemBarra.includes(view);
+        tabBar.style.display = esconderAbas ? 'none' : 'flex';
     }
     
-    // Dispara a montagem da lista de horários se a view for config
+    if (btn) {
+        const tabs = document.querySelectorAll('.tab-item');
+        if (tabs) {
+            tabs.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+    }
+    
     if (view === 'config') {
         this.renderizarConfigHorarios();
     }
 
+    // Tenta atualizar os dados da tela (lista de serviços, etc)
     this.atualizarDadosTela(targetView);
 },
 
@@ -155,14 +188,13 @@ atualizarDashPorPeriodo(periodo) {
     if (!this.dados.historico) this.dados.historico = [];
 
     const agora = new Date();
-    const hojeString = agora.toISOString().split('T')[0];
+    // Ajusta hoje para o formato DD/MM/AAAA para comparar com o "dia"
+    const hojePtBr = agora.toLocaleDateString('pt-BR'); 
+    
     let inicio = new Date();
     inicio.setHours(0, 0, 0, 0);
 
-    // Ajuste dos filtros de data
-    if (periodo === 'dia') {
-        inicio = new Date(hojeString + 'T00:00:00');
-    } else if (periodo === 'semana') {
+    if (periodo === 'semana') {
         inicio.setDate(agora.getDate() - 7);
     } else if (periodo === 'mes') {
         inicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
@@ -173,44 +205,43 @@ atualizarDashPorPeriodo(periodo) {
     }
 
     const filtrados = this.dados.historico.filter(h => {
-        const dataHString = h.dataConclusao || h.data;
+        const dataHString = h.dataConclusao || h.data; // Ex: "08/04/2026"
         if (!dataHString) return false;
 
-        if (periodo === 'dia') return dataHString === hojeString;
+        if (periodo === 'dia') return dataHString === hojePtBr;
         if (periodo === 'tudo') return true;
 
-        const dataH = new Date(dataHString + 'T12:00:00');
+        // Converte "DD/MM/AAAA" para um objeto Date comparável
+        const partes = dataHString.split('/');
+        if (partes.length !== 3) return false;
+        const dataH = new Date(partes[2], partes[1] - 1, partes[0], 12, 0, 0);
+
         return dataH >= inicio;
     });
 
-    // --- NOVA LÓGICA DE CÁLCULO POR PAGAMENTO ---
+    // --- LÓGICA DE CÁLCULO POR PAGAMENTO (Mantida igual) ---
     const resumoPg = { pix: 0, dinheiro: 0, credito: 0, debito: 0 };
     
-   filtrados.forEach(item => {
-    const ehServico = item.servico && item.servico.trim() !== "" && 
-                     item.cliente !== "AJUSTE MANUAL" && 
-                     item.cliente !== "PAGAMENTO REALIZADO";
+    filtrados.forEach(item => {
+        const ehServico = item.servico && item.servico.trim() !== "" && 
+                          item.cliente !== "AJUSTE MANUAL" && 
+                          item.cliente !== "PAGAMENTO REALIZADO";
 
-    if (ehServico && item.pagamento && resumoPg.hasOwnProperty(item.pagamento)) {
-        resumoPg[item.pagamento] += parseFloat(item.valorBruto || item.valor || 0);
-    }
-
+        if (ehServico && item.pagamento && resumoPg.hasOwnProperty(item.pagamento)) {
+            resumoPg[item.pagamento] += parseFloat(item.valorBruto || item.valor || 0);
+        }
     });
 
-    // Atualiza os labels do painel expandível se eles existirem na tela
     if (document.getElementById('resumo-pix')) {
         document.getElementById('resumo-pix').innerText = `R$ ${resumoPg.pix.toFixed(2)}`;
         document.getElementById('resumo-dinheiro').innerText = `R$ ${resumoPg.dinheiro.toFixed(2)}`;
         document.getElementById('resumo-credito').innerText = `R$ ${resumoPg.credito.toFixed(2)}`;
         document.getElementById('resumo-debito').innerText = `R$ ${resumoPg.debito.toFixed(2)}`;
     }
-    // --------------------------------------------
 
-    // Cálculos Financeiros Originais
     const bruto = filtrados.reduce((acc, curr) => acc + (parseFloat(curr.valorBruto || curr.valor || 0)), 0);
     const liquido = filtrados.reduce((acc, curr) => acc + (parseFloat(curr.valorLiquido || 0)), 0);
 
-    // Renderiza a interface enviando o período para os labels
     this.atualizarInterfaceDash(periodo, bruto, liquido, filtrados);
 },
 
@@ -734,13 +765,12 @@ finalizarPagamento(id) {
     const index = this.dados.agenda.findIndex(a => a.id === id);
     if (index === -1) return;
 
-    // --- CAPTURA A FORMA DE PAGAMENTO DO MODAL ---
+    // 1. Captura os dados do modal
     const formaPagamento = document.getElementById('checkout-pagamento').value;
-
     const itemConcluido = this.dados.agenda[index];
     let custoProdutoTotal = 0;
 
-    // --- LÓGICA DE ESTOQUE E CUSTO ---
+    // 2. Lógica de Estoque (Baixa local)
     if (itemConcluido.produto) {
         const pEstoque = this.dados.estoque.find(p => p.nome === itemConcluido.produto);
         if (pEstoque) {
@@ -750,50 +780,61 @@ finalizarPagamento(id) {
         }
     }
 
-    // --- NOVA LÓGICA DE COMISSÃO DINÂMICA ---
+    // --- 3. NOVA LÓGICA DE COMISSÃO (APENAS SOBRE SERVIÇO) ---
     const funcionario = this.dados.prestadores.find(p => p.nome === itemConcluido.prestador);
-    const valorBruto = parseFloat(itemConcluido.valor) || 0;
+    
+    // PEGANDO VALORES SEPARADOS
+    const valorBrutoTotal = parseFloat(itemConcluido.valor) || 0;
+    const valorApenasServico = parseFloat(itemConcluido.valorServico) || 0;
+    const valorApenasProduto = parseFloat(itemConcluido.valorProduto || 0);
+    
     let valorComissaoCalculada = 0;
 
     if (funcionario) {
         const tipo = funcionario.tipo || 'fixo';
         const valorBaseComissao = parseFloat(funcionario.comissao) || 0;
-
+        
         if (tipo === 'porcentagem') {
-            valorComissaoCalculada = valorBruto * (valorBaseComissao / 100);
+            // CÁLCULO MUDOU AQUI: Usamos valorApenasServico em vez de valorBruto
+            valorComissaoCalculada = valorApenasServico * (valorBaseComissao / 100);
         } else if (tipo === 'fixo') {
             valorComissaoCalculada = valorBaseComissao;
-        } else if (tipo === 'dono') {
-            valorComissaoCalculada = 0;
         }
     }
 
-    // --- CÁLCULO FINANCEIRO FINAL ---
-    const valorLiquido = valorBruto - valorComissaoCalculada - custoProdutoTotal;
+    // O Lucro Líquido agora é: (Serviço - Comissão) + Valor Integral do Produto - Custo do Produto
+    const valorLiquido = (valorApenasServico - valorComissaoCalculada) + valorApenasProduto - custoProdutoTotal;
 
-    // Atualiza o Caixa da Casa
+    // 4. Atualiza o Caixa Local
     if (typeof this.dados.caixa !== 'number') this.dados.caixa = 0;
     this.dados.caixa += valorLiquido;
 
-    // Salva no Histórico com o indicador de pagamento
+    // 5. Prepara o objeto de Histórico
+    const novoHistorico = {
+        data: new Date().toLocaleDateString('pt-BR'),
+        cliente: itemConcluido.cliente,
+        servico: itemConcluido.servico,
+        valor: valorBrutoTotal,                // Valor Total (Bruto)
+        valorBruto: valorBrutoTotal,           // Garantindo compatibilidade com o Dashboard
+        valorComissao: valorComissaoCalculada, // Comissão (Só sobre o serviço)
+        valorLiquido: valorLiquido,           // Lucro da Casa (Serviço líquido + Produto)
+        prestador: itemConcluido.prestador,
+        metodo: formaPagamento 
+    };
+
     if (!this.dados.historico) this.dados.historico = [];
-    this.dados.historico.push({
-        ...itemConcluido,
-        pagamento: formaPagamento, // <--- ADICIONADO AQUI
-        valorBruto: valorBruto,           
-        valorComissao: valorComissaoCalculada, 
-        valorCustoItem: custoProdutoTotal, 
-        valorLiquido: valorLiquido,       
-        dataConclusao: new Date().toISOString().split('T')[0]
-    });
-    
-    // Finalização e Persistência
+    this.dados.historico.push(novoHistorico);
+
+    // 6. Remove da agenda local
     this.dados.agenda.splice(index, 1);
-    this.persistir();
+
+    // 7. Persistência
+    this.persistir(); 
+
     this.fecharModal();
     this.renderView('dash');
 
-    console.log(`Venda Finalizada (${formaPagamento}): Lucro R$ ${valorLiquido.toFixed(2)}`);
+    console.log(`Venda: R$ ${valorBrutoTotal} | Comissão: R$ ${valorComissaoCalculada} | Líquido: R$ ${valorLiquido}`);
 },
     // --- FUNÇÕES DE APOIO (MANTIDAS) ---
 filtrarLista(tipo, termo) {
@@ -1219,17 +1260,58 @@ zerarComissao(id, valorPago) {
 },
 
 salvarServico() {
-    const nome = document.getElementById('ser-nome').value;
-    const valor = parseFloat(document.getElementById('ser-valor').value);
-    const id = document.getElementById('ser-id').value;
+    // 1. Captura de elementos com segurança
+    const elNome = document.getElementById('ser-nome');
+    const elValor = document.getElementById('ser-valor');
+    const elId = document.getElementById('ser-id');
+
+    if (!elNome || !elValor) {
+        console.error("Campos do modal não encontrados!");
+        return;
+    }
+
+    const nome = elNome.value.trim();
+    const valor = parseFloat(elValor.value);
+    const id = elId ? elId.value : "";
+
     if (nome && !isNaN(valor)) {
         if (id) {
+            // Edição de serviço existente
             const idx = this.dados.servicos.findIndex(s => s.id == id);
-            this.dados.servicos[idx] = { id: parseInt(id), nome, valor };
+            if (idx !== -1) {
+                this.dados.servicos[idx] = { 
+                    id: this.dados.servicos[idx].id, // Mantém o tipo original do ID
+                    nome: nome, 
+                    valor: valor 
+                };
+            }
         } else {
-            this.dados.servicos.push({ id: Date.now(), nome, valor });
+            // Criação de novo serviço
+            this.dados.servicos.push({ 
+                id: Date.now(), 
+                nome: nome, 
+                valor: valor 
+            });
         }
-        this.persistir(); this.fecharModal(); this.renderView('servicos');
+
+        // 2. Persistência e Limpeza da Interface
+        this.persistir(); 
+        this.fecharModal(); 
+
+        // 3. O Pulo do Gato: Pequeno delay para evitar erro de concorrência no DOM
+        setTimeout(() => {
+            // Garante que a lista seja reconstruída antes de mostrar a tela
+            if (typeof this.renderizarServicos === 'function') {
+                this.renderizarServicos();
+            }
+            
+            // Chama o renderView com tratamento de erro interno
+            this.renderView('servicos');
+            console.log(`✅ Serviço "${nome}" salvo e tela atualizada!`);
+        }, 100);
+
+    } else {
+        alert("Por favor, preencha o nome e um valor válido.");
     }
 },
 
@@ -1353,30 +1435,41 @@ compartilharLink() {
         alert("Não foi possível gerar o link de compartilhamento.");
     }
 }
+
 }
+
 async function salvarNoGoogle(dadosAgendamento) {
+
     const url = "https://script.google.com/macros/s/AKfycbxKLQVSSSFP7ELUCoh79PmlDdQ7-ey5jzdlmzfkap2GCEA_YqPvlrFnOVie2FLnZs-zpw/exec";
-    
     // Montamos o pacote com o e-mail do dono da aba e os dados do agendamento
     const payload = {
-        usuario: app.dados.usuario, // Identificador da aba
-        dados: dadosAgendamento
-    };
 
+        usuario: app.dados.usuario, // Identificador da aba
+
+        dados: dadosAgendamento
+
+    };
     try {
+
         await fetch(url, {
+
             method: 'POST',
-            mode: 'no-cors', 
+
+            mode: 'no-cors',
+
             body: JSON.stringify(payload)
+
         });
+
         console.log(`Dados enviados para a aba de: ${app.dados.usuario}`);
+
     } catch (error) {
+
         console.error("Erro ao salvar:", error);
     }
 }
-
 const githubDB = {
-    scriptURL: "https://script.google.com/macros/s/AKfycbxKLQVSSSFP7ELUCoh79PmlDdQ7-ey5jzdlmzfkap2GCEA_YqPvlrFnOVie2FLnZs-zpw/exec",
+  scriptURL: "https://script.google.com/macros/s/AKfycbxKLQVSSSFP7ELUCoh79PmlDdQ7-ey5jzdlmzfkap2GCEA_YqPvlrFnOVie2FLnZs-zpw/exec",
 
     get creds() {
         const config = localStorage.getItem('barber_auth');
@@ -1423,9 +1516,7 @@ const githubDB = {
         }
     }
 };
-// --- 2. FUNÇÕES DE SUPORTE ---
-// Garante que as credenciais sejam salvas e o app inicializado
-// Garante que as credenciais sejam salvas e o app inicializado
+
 async function configurarCloud() {
     const emailInput = document.getElementById('u-email').value.trim().toLowerCase();
     const tokenInput = document.getElementById('u-token').value.trim();
@@ -1464,7 +1555,7 @@ async function configurarCloud() {
     };
 }
 alert(`Bem-vindo de volta!`);
-        }
+            }    
          else {
             // USUÁRIO NOVO: Estrutura completa com os novos horários
             app.dados = { 
@@ -1653,3 +1744,45 @@ window.onload = async () => {
 };
 // Logout limpa tudo para permitir login com outro e-mail
 
+async function verificarAcessoInicial() {
+    const loadingScreen = document.getElementById('loading-screen');
+    const loginContent = document.getElementById('login-content');
+    
+    // 1. Início: Mostra o loader
+    loadingScreen.style.display = 'flex';
+    loginContent.style.display = 'none';
+
+    try {
+        // 2. O tempo de 5 segundos que você pediu
+        const tempoEspera = new Promise(resolve => setTimeout(resolve, 5000));
+        
+        // 3. Verifica se existe login salvo
+        const auth = JSON.parse(localStorage.getItem('barber_auth'));
+
+        if (auth) {
+            // Tenta logar enquanto o tempo corre
+            const logado = await realizarLogin(); 
+            await tempoEspera; // Garante que deu os 5 segundos
+
+            if (logado) {
+                loadingScreen.style.display = 'none';
+                app.renderView('dash'); // Vai para o sistema
+                return; 
+            }
+        } else {
+            // Se não tem login, apenas espera os 5 segundos de "charme"
+            await tempoEspera;
+        }
+
+    } catch (error) {
+        console.error("Erro no carregamento:", error);
+    }
+
+    // 4. SEGURANÇA: Se chegou aqui, nada deu certo ou é o primeiro acesso.
+    // Esconde o loader e MOSTRA O LOGIN (Evita a tela preta)
+    loadingScreen.style.display = 'none';
+    loginContent.style.display = 'block';
+}
+
+// Inicializa
+document.addEventListener('DOMContentLoaded', verificarAcessoInicial);
