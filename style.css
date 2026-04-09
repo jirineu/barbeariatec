@@ -143,3 +143,24 @@ body.agendar-mode select {
 .btn-primary:hover { background: #bfa030; transform: translateY(-2px); }
 
 .auth-footer { margin-top: 25px; text-align: center; color: #666; font-size: 12px; }
+.loader-circle {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(212, 175, 55, 0.2); /* Cor de fundo suave */
+    border-top: 5px solid #D4AF37; /* Cor principal (Dourado/Accent) */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Garante que o container ocupe a tela toda se necessário */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
