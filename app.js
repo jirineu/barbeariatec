@@ -809,7 +809,7 @@ salvarAgenda(acao) {
 
     // 2. COLETA DE DADOS DO FORMULÁRIO
     const cliente = document.getElementById('ag-nome').value.trim();
-    const data = document.getElementById('ag-data').value;
+    const dataBruta = document.getElementById('ag-data').value; // Ex: "2026-04-10"
     const prestador = document.getElementById('ag-prestador-select').value;
     const hora = document.getElementById('ag-hora-select').value;
     
@@ -824,15 +824,19 @@ salvarAgenda(acao) {
     const valorFinal = precoServico + precoProduto;
 
     // 3. VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS
-    if (cliente && data && prestador && hora && servico) {
+    if (cliente && dataBruta && prestador && hora && servico) {
         
+        // --- NOVO: CONVERSÃO DE DATA (AAAA-MM-DD para DD/MM/AAAA) ---
+        const dataFormatada = dataBruta.split('-').reverse().join('/');
+        // -----------------------------------------------------------
+
         // 4. LÓGICA DE ESTOQUE (Local e Planilha)
         if (produtoNome) {
             const itemEstoque = this.dados.estoque.find(p => p.nome === produtoNome);
             if (itemEstoque) {
                 const quantidadeAtual = Number(itemEstoque.qtd || itemEstoque.quantidade || 0);
                 if (quantidadeAtual > 0) {
-                    itemEstoque.qtd = quantidadeAtual - 1; // Abate localmente
+                    itemEstoque.qtd = quantidadeAtual - 1; 
                 } else {
                     alert(`Desculpe, o produto "${produtoNome}" esgotou agora pouco.`);
                     return; 
@@ -844,7 +848,7 @@ salvarAgenda(acao) {
         const novoAgendamento = { 
             id: Date.now(), 
             cliente, 
-            data, 
+            data: dataFormatada, // Agora enviamos a data já organizada
             prestador, 
             hora, 
             servico: produtoNome ? `${servico} + ${produtoNome}` : servico, 
@@ -857,12 +861,10 @@ salvarAgenda(acao) {
         this.dados.agenda.push(novoAgendamento);
 
         // 6. PERSISTÊNCIA (ENVIAR PARA GOOGLE SHEETS)
-        // Se for externo, usamos uma lógica de persistência imediata e limpeza de tela
         if (ehExterno) {
             this.persistirImediato().then(() => {
                 const linkReagendamento = window.location.href;
 
-                // Limpa dados sensíveis do navegador do cliente por segurança
                 localStorage.removeItem('barber_auth');
                 localStorage.removeItem('barber_local_db');
                 
@@ -875,7 +877,7 @@ salvarAgenda(acao) {
                             <div style="font-size:60px; color:#D4AF37; margin-bottom:20px;">✓</div>
                             <h2 style="color:#D4AF37; margin-bottom:10px;">Confirmado!</h2>
                             <p style="color:#ccc; margin-bottom:30px; line-height:1.6;">
-                                Olá <strong>${cliente}</strong>, seu horário para <strong>${data.split('-').reverse().join('/')}</strong> às <strong>${hora}</strong> foi reservado.
+                                Olá <strong>${cliente}</strong>, seu horário para <strong>${dataFormatada}</strong> às <strong>${hora}</strong> foi reservado.
                             </p>
                             <button onclick="window.location.href='${linkReagendamento}'" 
                                 style="width:100%; padding:18px; background:#D4AF37; border:none; border-radius:12px; font-weight:bold; color:black; font-size:16px;">
@@ -888,7 +890,6 @@ salvarAgenda(acao) {
             return; 
         }
 
-        // Se for o barbeiro no modo interno
         this.persistir();
         this.fecharModal();
         this.renderView('agenda');
@@ -898,7 +899,6 @@ salvarAgenda(acao) {
         alert(ehExterno ? "Por favor, preencha todos os dados para reservar seu horário." : "Preencha todos os campos obrigatórios!");
     }
 },
-
 // Função auxiliar para o modo externo garantir o envio antes de limpar a tela
 async persistirImediato() {
     localStorage.setItem('barber_local_db', JSON.stringify(this.dados));
