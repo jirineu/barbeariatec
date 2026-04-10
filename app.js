@@ -898,6 +898,7 @@ salvarAgenda(acao) {
         alert(ehExterno ? "Por favor, preencha todos os dados para reservar seu horário." : "Preencha todos os campos obrigatórios!");
     }
 },
+
 // Função auxiliar para o modo externo garantir o envio antes de limpar a tela
 async persistirImediato() {
     localStorage.setItem('barber_local_db', JSON.stringify(this.dados));
@@ -960,37 +961,40 @@ abrirCheckout(id) {
 },
 // --- SEQUÊNCIA: FUNÇÃO EXCLUIR AGENDAMENTO ---
 excluirAgendamento(id) {
-    // 1. CONFIRMAÇÃO: Evita exclusões acidentais com um toque
     if (confirm("⚠️ Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.")) {
         
-        // 2. LOCALIZAÇÃO: Encontra a posição do item no array da memória
-        const index = this.dados.agenda.findIndex(a => a.id === id);
+        // 2. LOCALIZAÇÃO (Tratando possíveis aspas do Google Sheets)
+        const index = this.dados.agenda.findIndex(a => 
+            String(a.id).replace("'", "") === String(id).replace("'", "")
+        );
         
         if (index !== -1) {
-            // 3. REMOÇÃO: Remove 1 item na posição encontrada
+            // 3. REMOÇÃO
             this.dados.agenda.splice(index, 1);
             
-            // 4. SINCRONIZAÇÃO: Salva no LocalStorage e agenda o envio para a Planilha
+            // 4. SINCRONIZAÇÃO
             this.persistir();
             
-            // 5. LIMPEZA DE INTERFACE: Fecha o modal de checkout/detalhes
+            // 5. LIMPEZA DE INTERFACE
             this.fecharModal();
             
-            // 6. ATUALIZAÇÃO VISUAL: Pequeno delay para garantir que a memória foi limpa
+            // 6. ATUALIZAÇÃO VISUAL
             setTimeout(() => {
-                // Força o redesenho da tela de agenda
                 this.renderView('agenda');
                 
-                // Se houver busca ativa, limpa o filtro para mostrar a lista correta
+                // Limpa o campo de busca visualmente se ele existir
+                const campoBusca = document.getElementById('search-agenda');
+                if (campoBusca) campoBusca.value = '';
+
                 if (typeof this.filtrarLista === 'function') {
                     this.filtrarLista('agenda', '');
                 }
                 
-                console.log(`✅ Agendamento ${id} removido com sucesso.`);
+                console.log(`✅ Agendamento ${id} removido.`);
             }, 100);
         } else {
-            console.error("❌ Erro: Agendamento não encontrado para exclusão.");
-            alert("Erro ao localizar o agendamento.");
+            console.error("❌ Erro: Agendamento não encontrado.");
+            alert("Erro ao localizar o agendamento para exclusão.");
         }
     }
 },
