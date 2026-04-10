@@ -1037,36 +1037,37 @@ excluirAgendamento(id) {
 
 // --- SEQUÊNCIA: FUNÇÃO FINALIZAR PAGAMENTO (CHECKOUT FINANCEIRO) ---
 finalizarPagamento(id) {
-    // 1. LOCALIZAÇÃO E VALIDAÇÃO (Tratando o ID como String/Número para evitar erros)
-    const index = this.dados.agenda.findIndex(a => String(a.id).replace("'", "") === String(id).replace("'", ""));
-    if (index === -1) {
-        alert("Erro: Agendamento não encontrado.");
-        return;
-    }
+    const index = this.dados.agenda.findIndex(a => a.id === id);
+    if (index === -1) return;
 
-    // 2. CAPTURA DOS DADOS DO MODAL E ITEM DA AGENDA
+    // 1. CAPTURA DOS DADOS DO MODAL E AGENDA
     const selectPg = document.getElementById('checkout-pagamento');
     const formaPagamento = selectPg ? selectPg.value : "dinheiro";
     const itemConcluido = this.dados.agenda[index];
     let custoProdutoTotal = 0;
 
-    // 3. LÓGICA DE ESTOQUE
+    // 2. LÓGICA DE ESTOQUE (Baixa local e cálculo de custo)
     if (itemConcluido.produto) {
         const pEstoque = this.dados.estoque.find(p => p.nome === itemConcluido.produto);
         if (pEstoque) {
+            // Abate a quantidade (suporta chaves 'qtd' ou 'quantidade' da planilha)
             if (Number(pEstoque.qtd || 0) > 0) pEstoque.qtd = Number(pEstoque.qtd) - 1;
             else if (Number(pEstoque.quantidade || 0) > 0) pEstoque.quantidade = Number(pEstoque.quantidade) - 1;
+            
+            // Registra o custo para calcular o lucro real depois
             custoProdutoTotal = Number(pEstoque.precoCusto || pEstoque.custo || 0);
         }
     }
 
-    // 4. CÁLCULO DE COMISSÃO
+    // 3. CÁLCULO DE COMISSÃO (Regra: Apenas sobre o valor do serviço)
     const funcionario = this.dados.prestadores.find(p => p.nome === (itemConcluido.prestador || itemConcluido.barbeiro));
+    
     const valorBrutoTotal = Number(itemConcluido.valor || 0);
     const valorApenasServico = Number(itemConcluido.valorServico || 0);
     const valorApenasProduto = Number(itemConcluido.valorProduto || 0);
     
     let valorComissaoCalculada = 0;
+
     if (funcionario) {
         const tipoComissao = (funcionario.tipo || 'fixo').toLowerCase();
         const taxaComissao = Number(funcionario.comissao || 0);
@@ -1074,52 +1075,53 @@ finalizarPagamento(id) {
         if (tipoComissao === 'porcentagem' || tipoComissao === 'percentual') {
             valorComissaoCalculada = valorApenasServico * (taxaComissao / 100);
         } else {
+            // Se for fixo, o valor da comissão é o próprio número cadastrado
             valorComissaoCalculada = taxaComissao;
         }
     }
 
-    // Lucro Líquido Casa
+    // REGRA DE OURO: Lucro Líquido = (Serviço - Comissão) + (Venda Produto - Custo Produto)
     const valorLiquidoCasa = (valorApenasServico - valorComissaoCalculada) + (valorApenasProduto - custoProdutoTotal);
 
-    // 5. ATUALIZAÇÃO DO CAIXA
+    // 4. ATUALIZAÇÃO DO CAIXA E HISTÓRICO
     if (typeof this.dados.caixa !== 'number') this.dados.caixa = 0;
     this.dados.caixa += valorLiquidoCasa;
 
-    // 6. CRIAÇÃO DO ITEM DE HISTÓRICO (IMPORTANTE: MANTÉM O ID)
+    // 5. PREPARAÇÃO PARA A PLANILHA (Aba _Hist)
     const novoHistorico = {
-        id: itemConcluido.id, // <--- CRUCIAL: Mantém o ID original para o bloqueador da planilha
-        data: itemConcluido.data, // Mantém a data do agendamento
-        dataConclusao: new Date().toLocaleDateString('pt-BR'), 
-        hora: itemConcluido.hora,
+        data: new Date().toLocaleDateString('pt-BR'),
+        dataConclusao: new Date().toLocaleDateString('pt-BR'), // Campo extra para segurança
+        hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
         cliente: itemConcluido.cliente,
         servico: itemConcluido.servico,
-        valorBruto: valorBrutoTotal,
-        valorComissao: valorComissaoCalculada,
-        valorLiquido: valorLiquidoCasa,
+        valor: valorBrutoTotal,                // Coluna Valor Bruto
+        valorBruto: valorBrutoTotal,           // Compatibilidade com Dashboard
+        valorComissao: valorComissaoCalculada, // Dinheiro do Barbeiro
+        valorLiquido: valorLiquidoCasa,        // Dinheiro da Casa
         prestador: itemConcluido.prestador || itemConcluido.barbeiro,
-        pagamento: formaPagamento
+        pagamento: formaPagamento,             // Dinheiro, Pix, etc.
+        metodo: formaPagamento 
     };
 
-    // 7. MOVIMENTAÇÃO DE LISTAS (Tira da Agenda -> Coloca no Histórico)
     if (!this.dados.historico) this.dados.historico = [];
-    
-    // Adiciona ao histórico local
     this.dados.historico.push(novoHistorico);
 
-    // Remove da agenda local (Splice remove 1 item no index encontrado)
+    // 6. FINALIZAÇÃO E SINCRONIZAÇÃO
+    // Remove da agenda (já foi atendido)
     this.dados.agenda.splice(index, 1);
 
-    // 8. SINCRONIZAÇÃO TOTAL
-    // Isso envia a nova agenda (sem o item) e o novo histórico para o Google
+    // Envia tudo para o Google Sheets (Agenda, Estoque, Histórico e Caixa)
     this.persistir(); 
 
     this.fecharModal();
     
-    // Feedback Visual
+    // Feedback e Redirecionamento
     setTimeout(() => {
-        this.renderView('dash'); // Vai para o Dashboard para ver o lucro
-        alert(`✅ Checkout Concluído!\n\nCliente: ${itemConcluido.cliente}\nTotal: R$ ${valorBrutoTotal.toFixed(2)}`);
+        this.renderView('dash');
+        alert(`Sucesso!\nBruto: R$ ${valorBrutoTotal.toFixed(2)}\nLíquido Casa: R$ ${valorLiquidoCasa.toFixed(2)}`);
     }, 300);
+
+    console.log(`Checkout concluído: Bruto ${valorBrutoTotal} | Comissão ${valorComissaoCalculada} | Líquido ${valorLiquidoCasa}`);
 },
     // --- FUNÇÕES DE APOIO (MANTIDAS) ---
 // --- SEQUÊNCIA: FUNÇÃO FILTRAR LISTA (SERVIÇOS, ESTOQUE E AGENDA) ---
