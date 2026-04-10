@@ -841,17 +841,18 @@ salvarAgenda(acao) {
         }
 
         // 5. REGISTRO NO OBJETO DE MEMÓRIA
-        const idObrigatorio = this.gerarNovoId(); 
-
-    const novoAgendamento = { 
-        id: idObrigatorio, 
-        cliente, 
-        data: data.split('-').reverse().join('/'), 
-        prestador, 
-        hora, 
-        servico: produtoNome ? `${servico} + ${produtoNome}` : servico, 
-        valor: valorFinal 
-    };
+        const novoAgendamento = { 
+            id: Date.now(), 
+            cliente, 
+            data, 
+            prestador, 
+            hora, 
+            servico: produtoNome ? `${servico} + ${produtoNome}` : servico, 
+            produto: produtoNome || null,
+            valorServico: precoServico,
+            valorProduto: precoProduto,
+            valor: valorFinal 
+        };
 
         this.dados.agenda.push(novoAgendamento);
 
@@ -888,7 +889,10 @@ salvarAgenda(acao) {
         }
 
         // Se for o barbeiro no modo interno
-        this.persistir();
+        
+        
+
+
         this.fecharModal();
         this.renderView('agenda');
         alert("✅ Agendamento salvo com sucesso!");
@@ -898,52 +902,31 @@ salvarAgenda(acao) {
     }
 },
 
-// Adicione esta função dentro do seu objeto 'app'
-gerarNovoId() {
-    // 1. Coleta IDs da Agenda
-    const idsAgenda = this.dados.agenda.map(item => {
-        const idLimpo = String(item.id || 0).replace("'", "");
-        return parseInt(idLimpo) || 0;
-    });
-
-    // 2. Coleta IDs do Histórico
-    const idsHistorico = (this.dados.historico || []).map(item => {
-        const idLimpo = String(item.id || 0).replace("'", "");
-        return parseInt(idLimpo) || 0;
-    });
-
-    // 3. Junta tudo e encontra o maior
-    const todosIds = [...idsAgenda, ...idsHistorico];
-    const maiorId = todosIds.length > 0 ? Math.max(...todosIds) : 0;
-
-    return maiorId + 1;
-},
-
-
-
-
 // Função auxiliar para o modo externo garantir o envio antes de limpar a tela
 async persistir() {
-    // 1. Salva localmente primeiro
+    // 1. Salva no navegador (Local Storage)
     localStorage.setItem('barber_local_db', JSON.stringify(this.dados));
-    
-    // 2. Prepara o pacote (Verifique se this.usuarioLogado ou similar está correto)
+
+    // 2. Define o usuário (Tenta pegar do login, senão usa o padrão)
+    const usuarioAtivo = this.dados.usuario || "moises"; 
+
+    // 3. Prepara o pacote de dados
     const pacote = { 
-        usuario: this.usuarioLogado || "moises", 
+        usuario: usuarioAtivo, 
         dados: this.dados 
     };
-    
+
     try {
-        await fetch(URL_SCRIPT, { 
+        // 4. Usa o 'this.scriptURL' que é a variável correta do seu app
+        await fetch(this.scriptURL, { 
             method: 'POST', 
             mode: 'no-cors', 
             body: JSON.stringify(pacote) 
         });
-        console.log("🚀 Dados enviados para o Google Sheets");
-        return true; // Retorna sucesso para o .then() do salvarAgenda
+        
+        console.log(`🚀 Dados de ${usuarioAtivo} enviados com sucesso!`);
     } catch (e) {
-        console.error("Erro no envio imediato", e);
-        throw e;
+        console.error("❌ Erro ao sincronizar com a planilha:", e);
     }
 },
 // --- SEQUÊNCIA: FUNÇÃO ABRIR CHECKOUT (FECHAMENTO) ---
@@ -2092,31 +2075,33 @@ const githubDB = {
      * SALVAMENTO ASSÍNCRONO:
      * Envia o estado completo do APP (this.dados) para ser salvo na planilha.
      */
-    async salvar(dados) {
+   async salvar(dados) {
         const c = this.creds;
         if (!c) {
             console.warn("❌ Tentativa de salvamento sem credenciais.");
             return false;
         }
 
+        // Garante que o usuário enviado é o e-mail, para cair na aba certa
         const payload = {
             usuario: c.userEmail,
             dados: dados 
         };
 
         try {
-            // Usamos mode: 'no-cors' para evitar problemas de preflight do Google
+            // Mudança sutil: removendo headers complexos que causam erro com no-cors
             await fetch(this.scriptURL, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' }, // GAS lida melhor com text/plain em no-cors
+                mode: 'no-cors', 
+                cache: 'no-cache',
                 body: JSON.stringify(payload)
             });
             
-            console.log("☁️ Backup enviado para o Google Sheets!");
+            console.log("☁️ Backup enviado com sucesso!");
             return true;
         } catch (e) { 
-            console.error("❌ Erro ao persistir dados:", e);
+            console.error("❌ Erro de conexão ao salvar:", e);
+            // Se der erro de fetch, tentamos avisar que pode ser o link ou internet
             return false; 
         }
     }
