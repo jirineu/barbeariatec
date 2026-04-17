@@ -826,13 +826,13 @@ salvarAgenda(acao) {
     // 3. VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS
     if (cliente && data && prestador && hora && servico) {
         
-        // 4. LÓGICA DE ESTOQUE (Local e Planilha)
+        // 4. LÓGICA DE ESTOQUE
         if (produtoNome) {
             const itemEstoque = this.dados.estoque.find(p => p.nome === produtoNome);
             if (itemEstoque) {
                 const quantidadeAtual = Number(itemEstoque.qtd || itemEstoque.quantidade || 0);
                 if (quantidadeAtual > 0) {
-                    itemEstoque.qtd = quantidadeAtual - 1; // Abate localmente
+                    itemEstoque.qtd = quantidadeAtual - 1; 
                 } else {
                     alert(`Desculpe, o produto "${produtoNome}" esgotou agora pouco.`);
                     return; 
@@ -840,59 +840,46 @@ salvarAgenda(acao) {
             }
         }
 
-        // 5. REGISTRO NO OBJETO DE MEMÓRIA
+        // 5. REGISTRO COM ID INCREMENTAL (Chamando a função que criamos antes)
+        const idObrigatorio = this.gerarNovoId(); 
+
         const novoAgendamento = { 
-            id: Date.now(), 
-            cliente, 
-            data, 
-            prestador, 
-            hora, 
-            servico: produtoNome ? `${servico} + ${produtoNome}` : servico, 
-            produto: produtoNome || null,
-            valorServico: precoServico,
-            valorProduto: precoProduto,
-            valor: valorFinal 
-        };
+    id: idObrigatorio, 
+    cliente, 
+    data, 
+    prestador, 
+    hora, 
+    servico: produtoNome ? `${servico} + ${produtoNome}` : servico, 
+    produto: produtoNome || null,
+    valorServico: precoServico,
+    valorProduto: precoProduto,
+    valor: valorFinal,
+    status: 'ativo' // <-- NOVO CAMPO ADICIONADO AQUI
+};
 
-        this.dados.agenda.push(novoAgendamento);
+this.dados.agenda.push(novoAgendamento);
 
-        // 6. PERSISTÊNCIA (ENVIAR PARA GOOGLE SHEETS)
-        // Se for externo, usamos uma lógica de persistência imediata e limpeza de tela
+        // 6. PERSISTÊNCIA (MODO EXTERNO / CLIENTE)
         if (ehExterno) {
+            // Usamos persistirImediato para garantir que o fetch aconteça antes de limpar o localStorage
             this.persistirImediato().then(() => {
                 const linkReagendamento = window.location.href;
-
-                // Limpa dados sensíveis do navegador do cliente por segurança
+                
+                // Limpa localmente para o cliente não ver seus outros dados
                 localStorage.removeItem('barber_auth');
                 localStorage.removeItem('barber_local_db');
                 
-                this.fecharModal();
-
-                // TELA DE SUCESSO PARA O CLIENTE
-                document.body.innerHTML = `
-                    <div style="height:100vh; background:#0f0f0f; display:flex; justify-content:center; align-items:center; font-family:sans-serif; padding:20px; color:white;">
-                        <div style="background:#1a1a1a; padding:40px; border-radius:20px; border:1px solid #D4AF37; text-align:center; max-width:400px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
-                            <div style="font-size:60px; color:#D4AF37; margin-bottom:20px;">✓</div>
-                            <h2 style="color:#D4AF37; margin-bottom:10px;">Confirmado!</h2>
-                            <p style="color:#ccc; margin-bottom:30px; line-height:1.6;">
-                                Olá <strong>${cliente}</strong>, seu horário para <strong>${data.split('-').reverse().join('/')}</strong> às <strong>${hora}</strong> foi reservado.
-                            </p>
-                            <button onclick="window.location.href='${linkReagendamento}'" 
-                                style="width:100%; padding:18px; background:#D4AF37; border:none; border-radius:12px; font-weight:bold; color:black; font-size:16px;">
-                                Fazer outro agendamento
-                            </button>
-                        </div>
-                    </div>
-                `;
+                this.exibirTelaSucesso(cliente, data, hora, linkReagendamento);
+            }).catch(err => {
+                alert("Erro ao salvar agendamento. Verifique sua conexão.");
+                console.error(err);
             });
             return; 
         }
 
-        // Se for o barbeiro no modo interno
-        
-        
-
-
+        // 7. PERSISTÊNCIA (MODO INTERNO / BARBEIRO)
+        // Se chegou aqui, é o barbeiro usando o app. Precisa salvar!
+        this.persistir(); // Envia para o Google Sheets
         this.fecharModal();
         this.renderView('agenda');
         alert("✅ Agendamento salvo com sucesso!");
@@ -902,32 +889,67 @@ salvarAgenda(acao) {
     }
 },
 
+gerarNovoId: function() {
+        // Gera um ID baseado no timestamp atual para ser único
+        return Date.now().toString();
+    },
+// Função auxiliar para organizar a tela de sucesso
+exibirTelaSucesso(cliente, data, hora, link) {
+    document.body.innerHTML = `
+        <div style="height:100vh; background:#0f0f0f; display:flex; justify-content:center; align-items:center; font-family:sans-serif; padding:20px; color:white;">
+            <div style="background:#1a1a1a; padding:40px; border-radius:20px; border:1px solid #D4AF37; text-align:center; max-width:400px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                <div style="font-size:60px; color:#D4AF37; margin-bottom:20px;">✓</div>
+                <h2 style="color:#D4AF37; margin-bottom:10px;">Confirmado!</h2>
+                <p style="color:#ccc; margin-bottom:30px; line-height:1.6;">
+                    Olá <strong>${cliente}</strong>, seu horário para <strong>${data.split('-').reverse().join('/')}</strong> às <strong>${hora}</strong> foi reservado.
+                </p>
+                <button onclick="window.location.href='${link}'" 
+                    style="width:100%; padding:18px; background:#D4AF37; border:none; border-radius:12px; font-weight:bold; color:black; font-size:16px; cursor:pointer;">
+                    Fazer outro agendamento
+                </button>
+            </div>
+        </div>
+    `;
+},
+
 // Função auxiliar para o modo externo garantir o envio antes de limpar a tela
-async persistir() {
-    // 1. Salva no navegador (Local Storage)
-    localStorage.setItem('barber_local_db', JSON.stringify(this.dados));
-
-    // 2. Define o usuário (Tenta pegar do login, senão usa o padrão)
-    const usuarioAtivo = this.dados.usuario || "moises"; 
-
-    // 3. Prepara o pacote de dados
-    const pacote = { 
-        usuario: usuarioAtivo, 
-        dados: this.dados 
-    };
-
+persistir() {
+    // 1. Backup Local
     try {
-        // 4. Usa o 'this.scriptURL' que é a variável correta do seu app
-        await fetch(this.scriptURL, { 
-            method: 'POST', 
-            mode: 'no-cors', 
-            body: JSON.stringify(pacote) 
-        });
-        
-        console.log(`🚀 Dados de ${usuarioAtivo} enviados com sucesso!`);
+        localStorage.setItem('barber_local_db', JSON.stringify(this.dados));
     } catch (e) {
-        console.error("❌ Erro ao sincronizar com a planilha:", e);
+        console.warn("⚠️ LocalStorage cheio");
     }
+
+    if (this.timerSalvar) clearTimeout(this.timerSalvar);
+
+    this.timerSalvar = setTimeout(async () => {
+        // CORREÇÃO: Garante que pega a URL de onde ela estiver definida
+        const URL_SCRIPT = githubDB.scriptURL || this.scriptURL; 
+        
+        if (!URL_SCRIPT) return console.error("❌ Erro: URL do Script não encontrada!");
+
+        const pacote = {
+            usuario: this.dados.usuario || (githubDB.creds ? githubDB.creds.userEmail : "admin"),
+            dados: this.dados
+        };
+
+        try {
+            // CORREÇÃO: Removido o campo 'headers' para permitir o funcionamento do no-cors
+            await fetch(URL_SCRIPT, {
+                method: 'POST',
+                mode: 'no-cors',
+                cache: 'no-cache',
+                body: JSON.stringify(pacote)
+            });
+
+            console.log("✅ Sinal enviado para o Google!");
+            this.mostrarFeedbackSincronizacao();
+
+        } catch (error) {
+            console.error("❌ Erro de conexão física:", error);
+        }
+    }, 1500); 
 },
 // --- SEQUÊNCIA: FUNÇÃO ABRIR CHECKOUT (FECHAMENTO) ---
 abrirCheckout(id) {
@@ -966,7 +988,7 @@ abrirCheckout(id) {
         </div>
         
         <button class="btn-primary" style="background: var(--success); color: white; font-weight: bold;" 
-            onclick="app.finalizarPagamento(${id})">✅ Confirmar e Lançar no Caixa</button>
+            onclick="app.finalizarPagamento('${id}')">✅ Confirmar e Lançar no Caixa</button>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
             <button class="btn-primary" style="background:#b30000; font-size: 12px;" 
@@ -980,28 +1002,30 @@ abrirCheckout(id) {
 },
 // --- SEQUÊNCIA: FUNÇÃO EXCLUIR AGENDAMENTO ---
 excluirAgendamento(id) {
-    if (confirm("⚠️ Deseja realmente excluir este agendamento? Esta ação não pode ser desfeita.")) {
+    if (confirm("⚠️ Deseja realmente excluir este agendamento? Ele não aparecerá mais na sua agenda.")) {
         
-        // 2. LOCALIZAÇÃO (Tratando possíveis aspas do Google Sheets)
-        const index = this.dados.agenda.findIndex(a => 
-            String(a.id).replace("'", "") === String(id).replace("'", "")
+        // 1. LOCALIZAÇÃO (Tratando strings e possíveis aspas do Sheets)
+        const idLimpo = String(id).replace("'", "");
+        const agendamento = this.dados.agenda.find(a => 
+            String(a.id).replace("'", "") === idLimpo
         );
         
-        if (index !== -1) {
-            // 3. REMOÇÃO
-            this.dados.agenda.splice(index, 1);
+        if (agendamento) {
+            // 2. MUDANÇA DE STATUS (Em vez de remover com splice)
+            // Isso faz o item sumir da tela de Agenda (se houver o filtro de status)
+            agendamento.status = 'desativado';
             
-            // 4. SINCRONIZAÇÃO
+            // 3. SINCRONIZAÇÃO COM A PLANILHA
+            // O persistir enviará o novo status para a coluna K da sua planilha
             this.persistir();
             
-            // 5. LIMPEZA DE INTERFACE
+            // 4. LIMPEZA DE INTERFACE
             this.fecharModal();
             
-            // 6. ATUALIZAÇÃO VISUAL
+            // 5. ATUALIZAÇÃO VISUAL
             setTimeout(() => {
                 this.renderView('agenda');
                 
-                // Limpa o campo de busca visualmente se ele existir
                 const campoBusca = document.getElementById('search-agenda');
                 if (campoBusca) campoBusca.value = '';
 
@@ -1009,7 +1033,7 @@ excluirAgendamento(id) {
                     this.filtrarLista('agenda', '');
                 }
                 
-                console.log(`✅ Agendamento ${id} removido.`);
+                console.log(`✅ Agendamento ${id} desativado com sucesso.`);
             }, 100);
         } else {
             console.error("❌ Erro: Agendamento não encontrado.");
@@ -1017,32 +1041,31 @@ excluirAgendamento(id) {
         }
     }
 },
-
 // --- SEQUÊNCIA: FUNÇÃO FINALIZAR PAGAMENTO (CHECKOUT FINANCEIRO) ---
 finalizarPagamento(id) {
-    const index = this.dados.agenda.findIndex(a => a.id === id);
-    if (index === -1) return;
+    // 1. Localiza o item (usando String para evitar erros de tipo)
+    const itemConcluido = this.dados.agenda.find(a => String(a.id) === String(id));
+    if (!itemConcluido) {
+        alert("Erro: Agendamento não encontrado.");
+        return;
+    }
 
-    // 1. CAPTURA DOS DADOS DO MODAL E AGENDA
+    // 2. CAPTURA DOS DADOS DO MODAL
     const selectPg = document.getElementById('checkout-pagamento');
     const formaPagamento = selectPg ? selectPg.value : "dinheiro";
-    const itemConcluido = this.dados.agenda[index];
     let custoProdutoTotal = 0;
 
-    // 2. LÓGICA DE ESTOQUE (Baixa local e cálculo de custo)
+    // 3. LÓGICA DE ESTOQUE
     if (itemConcluido.produto) {
         const pEstoque = this.dados.estoque.find(p => p.nome === itemConcluido.produto);
         if (pEstoque) {
-            // Abate a quantidade (suporta chaves 'qtd' ou 'quantidade' da planilha)
             if (Number(pEstoque.qtd || 0) > 0) pEstoque.qtd = Number(pEstoque.qtd) - 1;
             else if (Number(pEstoque.quantidade || 0) > 0) pEstoque.quantidade = Number(pEstoque.quantidade) - 1;
-            
-            // Registra o custo para calcular o lucro real depois
             custoProdutoTotal = Number(pEstoque.precoCusto || pEstoque.custo || 0);
         }
     }
 
-    // 3. CÁLCULO DE COMISSÃO (Regra: Apenas sobre o valor do serviço)
+    // 4. CÁLCULO DE COMISSÃO
     const funcionario = this.dados.prestadores.find(p => p.nome === (itemConcluido.prestador || itemConcluido.barbeiro));
     
     const valorBrutoTotal = Number(itemConcluido.valor || 0);
@@ -1058,53 +1081,44 @@ finalizarPagamento(id) {
         if (tipoComissao === 'porcentagem' || tipoComissao === 'percentual') {
             valorComissaoCalculada = valorApenasServico * (taxaComissao / 100);
         } else {
-            // Se for fixo, o valor da comissão é o próprio número cadastrado
             valorComissaoCalculada = taxaComissao;
         }
     }
 
-    // REGRA DE OURO: Lucro Líquido = (Serviço - Comissão) + (Venda Produto - Custo Produto)
+    // Lucro Líquido Casa
     const valorLiquidoCasa = (valorApenasServico - valorComissaoCalculada) + (valorApenasProduto - custoProdutoTotal);
 
-    // 4. ATUALIZAÇÃO DO CAIXA E HISTÓRICO
+    // 5. ATUALIZAÇÃO DO CAIXA E HISTÓRICO
     if (typeof this.dados.caixa !== 'number') this.dados.caixa = 0;
     this.dados.caixa += valorLiquidoCasa;
 
-    // 5. PREPARAÇÃO PARA A PLANILHA (Aba _Hist)
     const novoHistorico = {
+        id: itemConcluido.id, // Mantém o ID para rastreio
         data: new Date().toLocaleDateString('pt-BR'),
-        dataConclusao: new Date().toLocaleDateString('pt-BR'), // Campo extra para segurança
-        hora: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
         cliente: itemConcluido.cliente,
         servico: itemConcluido.servico,
-        valor: valorBrutoTotal,                // Coluna Valor Bruto
-        valorBruto: valorBrutoTotal,           // Compatibilidade com Dashboard
-        valorComissao: valorComissaoCalculada, // Dinheiro do Barbeiro
-        valorLiquido: valorLiquidoCasa,        // Dinheiro da Casa
+        valorBruto: valorBrutoTotal,
+        valorComissao: valorComissaoCalculada,
+        valorLiquido: valorLiquidoCasa,
         prestador: itemConcluido.prestador || itemConcluido.barbeiro,
-        pagamento: formaPagamento,             // Dinheiro, Pix, etc.
-        metodo: formaPagamento 
+        pagamento: formaPagamento
     };
 
     if (!this.dados.historico) this.dados.historico = [];
     this.dados.historico.push(novoHistorico);
 
-    // 6. FINALIZAÇÃO E SINCRONIZAÇÃO
-    // Remove da agenda (já foi atendido)
-    this.dados.agenda.splice(index, 1);
+    // 6. REGRA DO STATUS (EM VEZ DE SPLICE)
+    // Isso faz o item sumir da tela de Agenda, mas mantém os dados para a planilha
+    itemConcluido.status = 'desativado';
 
-    // Envia tudo para o Google Sheets (Agenda, Estoque, Histórico e Caixa)
-    this.persistir(); 
-
+    // 7. SINCRONIZAÇÃO E FEEDBACK
+    this.persistir(); // Salva tudo no Google Sheets
     this.fecharModal();
     
-    // Feedback e Redirecionamento
     setTimeout(() => {
-        this.renderView('dash');
+        this.renderView('dash'); // Volta para o Dashboard
         alert(`Sucesso!\nBruto: R$ ${valorBrutoTotal.toFixed(2)}\nLíquido Casa: R$ ${valorLiquidoCasa.toFixed(2)}`);
     }, 300);
-
-    console.log(`Checkout concluído: Bruto ${valorBrutoTotal} | Comissão ${valorComissaoCalculada} | Líquido ${valorLiquidoCasa}`);
 },
     // --- FUNÇÕES DE APOIO (MANTIDAS) ---
 // --- SEQUÊNCIA: FUNÇÃO FILTRAR LISTA (SERVIÇOS, ESTOQUE E AGENDA) ---
@@ -1190,7 +1204,7 @@ filtrarLista(tipo, termo) {
                     <div style="text-align:right">
                         <div style="font-weight:bold; color:var(--success); margin-bottom:8px">R$ ${valorTotal.toFixed(2)}</div>
                         <button class="btn-small" style="background:var(--success); color:black; font-weight:bold; padding:10px 15px;" 
-                                onclick="app.abrirCheckout(${a.id})">PAGAR</button>
+                                onclick="app.abrirCheckout('${a.id}')">PAGAR</button>
                     </div>
                 </div>
             `;
@@ -2002,7 +2016,7 @@ compartilharLink() {
 
 async function salvarNoGoogle(dadosAgendamento) {
     // 1. URL do seu Script (Web App)
-    const url = "https://script.google.com/macros/s/AKfycbxKLQVSSSFP7ELUCoh79PmlDdQ7-ey5jzdlmzfkap2GCEA_YqPvlrFnOVie2FLnZs-zpw/exec";
+    const url = "https://script.google.com/macros/s/AKfycbyCltJg8ooupJqBUwkB0axHUPI3TnsZYhUXhXHDqDADDz7hdTQc8Vxf-ABAeetVqUn_EQ/exec";
     
     // 2. Montagem do Payload
     // Garantimos que o usuário e os dados existam antes de enviar
@@ -2038,7 +2052,7 @@ async function salvarNoGoogle(dadosAgendamento) {
 }
 // --- MÓDULO DE PERSISTÊNCIA REMOTA ---
 const githubDB = {
-    scriptURL: "https://script.google.com/macros/s/AKfycbxKLQVSSSFP7ELUCoh79PmlDdQ7-ey5jzdlmzfkap2GCEA_YqPvlrFnOVie2FLnZs-zpw/exec",
+    scriptURL: "https://script.google.com/macros/s/AKfycbyCltJg8ooupJqBUwkB0axHUPI3TnsZYhUXhXHDqDADDz7hdTQc8Vxf-ABAeetVqUn_EQ/exec",
 
     // Recupera as credenciais salvas no login
     get creds() {
