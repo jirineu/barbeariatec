@@ -934,7 +934,7 @@ salvarAgenda(acao) {
     } else {
         alert(ehExterno ? "Por favor, preencha todos os dados para reservar seu horário." : "Preencha todos os campos obrigatórios!");
     }
-}
+},
 gerarNovoId: function() {
         // Gera um ID baseado no timestamp atual para ser único
         return Date.now().toString();
