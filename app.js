@@ -826,7 +826,7 @@ salvarAgenda(acao) {
     // 3. VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS
     if (cliente && data && prestador && hora && servico) {
         
-        // 4. LÓGICA DE ESTOQUE
+        // LÓGICA DE ESTOQUE
         if (produtoNome) {
             const itemEstoque = this.dados.estoque.find(p => p.nome === produtoNome);
             if (itemEstoque) {
@@ -840,46 +840,81 @@ salvarAgenda(acao) {
             }
         }
 
-        // 5. REGISTRO COM ID INCREMENTAL (Chamando a função que criamos antes)
         const idObrigatorio = this.gerarNovoId(); 
 
         const novoAgendamento = { 
-    id: idObrigatorio, 
-    cliente, 
-    data, 
-    prestador, 
-    hora, 
-    servico: produtoNome ? `${servico} + ${produtoNome}` : servico, 
-    produto: produtoNome || null,
-    valorServico: precoServico,
-    valorProduto: precoProduto,
-    valor: valorFinal,
-    status: 'ativo' // <-- NOVO CAMPO ADICIONADO AQUI
-};
+            id: idObrigatorio, 
+            cliente, 
+            data, 
+            prestador, 
+            hora, 
+            servico: produtoNome ? `${servico} + ${produtoNome}` : servico, 
+            produto: produtoNome || null,
+            valorServico: precoServico,
+            valorProduto: precoProduto,
+            valor: valorFinal,
+            status: 'ativo'
+        };
 
-this.dados.agenda.push(novoAgendamento);
+        this.dados.agenda.push(novoAgendamento);
 
-        // 6. PERSISTÊNCIA (MODO EXTERNO / CLIENTE)
+        // 4. PERSISTÊNCIA (MODO EXTERNO / CLIENTE)
         if (ehExterno) {
-            // Usamos persistirImediato para garantir que o fetch aconteça antes de limpar o localStorage
-            this.persistirImediato().then(() => {
+            // Extrai o nome do usuário correto (ex: 'moises') diretamente do parâmetro do link
+            let usuarioDestino = this.dados.usuario || githubDB.creds?.userEmail;
+            
+            if (params.has('data')) {
+                try {
+                    const rawData = atob(params.get('data'));
+                    const info = JSON.parse(decodeURIComponent(escape(rawData)));
+                    if (info.u) usuarioDestino = info.u;
+                } catch (e) {
+                    console.error("Erro ao ler token da URL:", e);
+                }
+            }
+
+            const pacote = {
+                usuario: usuarioDestino,
+                dados: this.dados
+            };
+
+            const URL_SCRIPT = githubDB.scriptURL || this.scriptURL;
+
+            // Feedback visual no botão enquanto salva
+            const btnSalvar = document.querySelector('.btn-primary');
+            if (btnSalvar) {
+                btnSalvar.disabled = true;
+                btnSalvar.innerText = "Agendando...";
+            }
+
+            // ENVIO IMEDIATO SEM SETTIMEOUT
+            fetch(URL_SCRIPT, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(pacote)
+            }).then(() => {
                 const linkReagendamento = window.location.href;
                 
-                // Limpa localmente para o cliente não ver seus outros dados
+                // Limpa o cache do navegador do cliente
                 localStorage.removeItem('barber_auth');
                 localStorage.removeItem('barber_local_db');
                 
                 this.exibirTelaSucesso(cliente, data, hora, linkReagendamento);
             }).catch(err => {
-                alert("Erro ao salvar agendamento. Verifique sua conexão.");
+                alert("❌ Erro de conexão ao agendar. Verifique sua internet.");
                 console.error(err);
+                if (btnSalvar) {
+                    btnSalvar.disabled = false;
+                    btnSalvar.innerText = "Confirmar Agendamento";
+                }
             });
+
             return; 
         }
 
-        // 7. PERSISTÊNCIA (MODO INTERNO / BARBEIRO)
-        // Se chegou aqui, é o barbeiro usando o app. Precisa salvar!
-        this.persistir(); // Envia para o Google Sheets
+        // 5. PERSISTÊNCIA (MODO INTERNO / BARBEIRO)
+        this.persistir(); 
         this.fecharModal();
         this.renderView('agenda');
         alert("✅ Agendamento salvo com sucesso!");
@@ -887,7 +922,7 @@ this.dados.agenda.push(novoAgendamento);
     } else {
         alert(ehExterno ? "Por favor, preencha todos os dados para reservar seu horário." : "Preencha todos os campos obrigatórios!");
     }
-},
+}, 
 
 gerarNovoId: function() {
         // Gera um ID baseado no timestamp atual para ser único
