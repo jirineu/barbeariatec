@@ -1222,9 +1222,26 @@ filtrarLista(tipo, termo) {
     }
 
     // --- BLOCO DE AGENDA ---
+   // --- BLOCO DE AGENDA ---
     if (tipo === 'agenda') {
         const container = document.getElementById('lista-agenda-content');
         if (!container) return;
+
+        // Funções locais para limpar formatos ISO antigos (caso estejam em cache)
+        const limparDataExibicao = (dataValor) => {
+            if (!dataValor) return "---";
+            let str = String(dataValor);
+            if (str.includes('T')) str = str.split('T')[0];
+            const partes = str.split('-');
+            return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : str;
+        };
+
+        const limparHoraExibicao = (horaValor) => {
+            if (!horaValor) return "---";
+            let str = String(horaValor);
+            if (str.includes('T')) str = str.split('T')[1];
+            return str.substring(0, 5);
+        };
 
         const filtrados = (this.dados.agenda || []).filter(a => {
             const cliente = (a.cliente || "").toLowerCase();
@@ -1236,13 +1253,14 @@ filtrarLista(tipo, termo) {
         filtrados.sort((a, b) => a.data.localeCompare(b.data) || a.hora.localeCompare(b.hora));
 
         container.innerHTML = filtrados.map(a => {
-            const dataFormatada = a.data ? a.data.split('-').reverse().join('/') : '---';
+            const dataFormatada = limparDataExibicao(a.data);
+            const horaFormatada = limparHoraExibicao(a.hora);
             const valorTotal = Number(a.valor || 0);
 
             return `
                 <div class="item-list" style="border-left: 4px solid var(--accent); margin-bottom: 8px; background: #1a1a1a; padding: 15px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <strong style="font-size:14px; color:#aaa">${dataFormatada} - ${a.hora}</strong><br>
+                        <strong style="font-size:14px; color:#aaa">${dataFormatada} - ${horaFormatada}</strong><br>
                         <div style="color:white; font-weight:bold; font-size:16px; margin: 4px 0;">${a.cliente}</div>
                         <small style="color:var(--accent)">✂️ ${a.servico}</small><br>
                         <small style="color:#666">Barbeiro: ${a.prestador || a.barbeiro}</small>
