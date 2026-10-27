@@ -814,8 +814,8 @@ salvarAgenda(acao) {
     const hora = document.getElementById('ag-hora-select').value;
     
     const selectServ = document.getElementById('ag-servico-select');
-    const servico = selectServ.value;
-    const precoServico = Number(selectServ.options[selectServ.selectedIndex]?.dataset.preco || 0);
+    const servico = selectServ ? selectServ.value : "";
+    const precoServico = Number(selectServ?.options[selectServ.selectedIndex]?.dataset.preco || 0);
 
     const selectProd = document.getElementById('ag-produto-select');
     const produtoNome = selectProd ? selectProd.value : "";
@@ -826,7 +826,19 @@ salvarAgenda(acao) {
     // 3. VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS
     if (cliente && data && prestador && hora && servico) {
         
-        // LÓGICA DE ESTOQUE
+        // --- TRAVA DE ÚLTIMA HORA (Impede agendamento duplo do mesmo horário) ---
+        const ocupadoDeUltimaHora = (this.dados.agenda || []).some(a => {
+            const profAgenda = (a.prestador || a.profissional || "").trim().toLowerCase();
+            const profBusca = prestador.trim().toLowerCase();
+            return profAgenda === profBusca && a.hora === hora && a.data === data && a.status !== 'desativado';
+        });
+
+        if (ocupadoDeUltimaHora) {
+            alert("⚠️ Ops! Este horário acabou de ser reservado. Por favor, escolha outro horário.");
+            return;
+        }
+
+        // --- LÓGICA DE ESTOQUE ---
         if (produtoNome) {
             const itemEstoque = this.dados.estoque.find(p => p.nome === produtoNome);
             if (itemEstoque) {
@@ -860,7 +872,7 @@ salvarAgenda(acao) {
 
         // 4. PERSISTÊNCIA (MODO EXTERNO / CLIENTE)
         if (ehExterno) {
-            // Extrai o nome do usuário correto (ex: 'moises') diretamente do parâmetro do link
+            // Identifica o e-mail/usuário correto do link (ex: 'moises')
             let usuarioDestino = this.dados.usuario || githubDB.creds?.userEmail;
             
             if (params.has('data')) {
@@ -880,14 +892,14 @@ salvarAgenda(acao) {
 
             const URL_SCRIPT = githubDB.scriptURL || this.scriptURL;
 
-            // Feedback visual no botão enquanto salva
+            // Trava o botão para evitar cliques múltiplos no celular
             const btnSalvar = document.querySelector('.btn-primary');
             if (btnSalvar) {
                 btnSalvar.disabled = true;
                 btnSalvar.innerText = "Agendando...";
             }
 
-            // ENVIO IMEDIATO SEM SETTIMEOUT
+            // Envio imediato sem delay de setTimeout
             fetch(URL_SCRIPT, {
                 method: 'POST',
                 mode: 'no-cors',
@@ -896,7 +908,7 @@ salvarAgenda(acao) {
             }).then(() => {
                 const linkReagendamento = window.location.href;
                 
-                // Limpa o cache do navegador do cliente
+                // Limpa o cache local temporário do cliente
                 localStorage.removeItem('barber_auth');
                 localStorage.removeItem('barber_local_db');
                 
@@ -922,8 +934,7 @@ salvarAgenda(acao) {
     } else {
         alert(ehExterno ? "Por favor, preencha todos os dados para reservar seu horário." : "Preencha todos os campos obrigatórios!");
     }
-}, 
-
+}
 gerarNovoId: function() {
         // Gera um ID baseado no timestamp atual para ser único
         return Date.now().toString();
